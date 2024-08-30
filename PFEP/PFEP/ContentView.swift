@@ -24,18 +24,24 @@ struct ContentView: View {
                             .padding(.bottom, 5)
                         
                         ForEach(savedTasks.indices, id: \.self) { index in
-                            NavigationLink(destination: EditTaskView(task: $savedTasks[index])) {
-                                HStack {
+                            NavigationLink(destination: EditTaskView(task: $savedTasks[index], savedTasks: $savedTasks)) {
+                                VStack(alignment: .leading, spacing: 10) {
                                     Text(savedTasks[index].name)
-                                        .font(.subheadline)
-                                    Spacer()
-                                    Text(String(format: "完成比: %.2f%%", savedTasks[index].weightedCompletionRatio * 100))
-                                        .font(.subheadline)
+                                        .font(.headline)
+                                        .foregroundColor(.primary)
+                                        .frame(maxWidth: .infinity, alignment: .leading)  // 使任务名称靠左对齐
+                                    
+                                    Text(String(format: "%.2f%%", savedTasks[index].weightedCompletionRatio * 100))
+                                        .font(.system(size: 32, weight: .bold))  // 更大的粗体字体显示完成比
+                                        .foregroundColor(.primary)
+                                        .frame(maxWidth: .infinity, alignment: .leading)  // 使完成比靠左对齐
                                 }
                                 .padding()
+                                .frame(maxWidth: .infinity)  // 使框变得更长
                                 .background(Color.gray.opacity(0.1))
-                                .cornerRadius(8)
+                                .cornerRadius(10)
                             }
+                            .padding(.bottom, 10)  // 每个任务框之间增加一些间距
                         }
                     }
                     .padding()
@@ -61,7 +67,6 @@ struct ContentView: View {
         }
     }
 }
-
 struct NewTaskView: View {
     @Binding var savedTasks: [Task]
     @Environment(\.presentationMode) var presentationMode
@@ -161,7 +166,7 @@ struct NewTaskView: View {
 
                 Spacer()
 
-                Button("首页") {
+                Button("退出") {
                     showSavePrompt = true
                 }
                 .font(.headline)
@@ -238,11 +243,14 @@ struct NewTaskView: View {
         presentationMode.wrappedValue.dismiss()
     }
 }
+
 struct EditTaskView: View {
     @Binding var task: Task
+    @Binding var savedTasks: [Task]  // 用于传递整个任务列表，以便在删除任务时更新
     @Environment(\.presentationMode) var presentationMode
     @State private var showAlert = false
     @State private var alertMessage = ""
+    @State private var showDeleteConfirmation = false  // 控制删除确认对话框的显示
 
     let columns = [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())]
 
@@ -320,7 +328,17 @@ struct EditTaskView: View {
             Spacer()
 
             HStack {
+                Button("删除") {
+                    showDeleteConfirmation = true  // 显示删除确认对话框
+                }
+                .font(.headline)
+                .padding()
+                .background(Color.red)
+                .foregroundColor(.white)
+                .cornerRadius(10)
+
                 Spacer()
+
                 Button("保存") {
                     saveTask()
                     presentationMode.wrappedValue.dismiss()
@@ -338,6 +356,16 @@ struct EditTaskView: View {
         .navigationTitle(task.name.isEmpty ? "编辑任务" : task.name)
         .alert(isPresented: $showAlert) {
             Alert(title: Text("输入错误"), message: Text(alertMessage), dismissButton: .default(Text("确定")))
+        }
+        .alert(isPresented: $showDeleteConfirmation) {
+            Alert(
+                title: Text("删除任务"),
+                message: Text("您确定要删除此任务吗？此操作无法撤销。"),
+                primaryButton: .destructive(Text("删除")) {
+                    deleteTask()
+                },
+                secondaryButton: .cancel(Text("取消"))  // 将 cancel 按钮的文字改为“取消”
+            )
         }
     }
 
@@ -367,6 +395,13 @@ struct EditTaskView: View {
         }
 
         task.weightedCompletionRatio = totalTime > 0 ? 1.0 - Double(totalRemainingTime) / Double(totalTime) : 0.0
+    }
+
+    func deleteTask() {
+        if let index = savedTasks.firstIndex(where: { $0.id == task.id }) {
+            savedTasks.remove(at: index)  // 从任务列表中删除任务
+        }
+        presentationMode.wrappedValue.dismiss()
     }
 }
 struct ContentView_Previews: PreviewProvider {
