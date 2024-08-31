@@ -125,29 +125,9 @@ struct NewTaskView: View {
                 ForEach(0..<completedCounts.count, id: \.self) { index in
                     TextField("输入项目名称", text: $projectNames[index])  // 绑定项目名称
                     TextField("输入项目数量", text: $taskCount[index])
-                        .keyboardType(.numberPad)
-                        .onChange(of: taskCount[index]) {
-                            if !isValidNumber($0) {
-                                showError(message: "项目数量必须为数字")
-                                taskCount[index] = ""
-                            }
-                        }
                     TextField("输入单项时间", text: $singleTime[index])
-                        .keyboardType(.numberPad)
-                        .onChange(of: singleTime[index]) {
-                            if !isValidNumber($0) {
-                                showError(message: "单项时间必须为数字")
-                                singleTime[index] = ""
-                            }
-                        }
-                    TextField("完成数量", text: $completedCounts[index])
-                        .keyboardType(.numberPad)
-                        .onChange(of: completedCounts[index]) {
-                            if !isValidNumber($0) {
-                                showError(message: "完成数量必须为数字")
-                                completedCounts[index] = "0"
-                            }
-                        }
+                    TextField("输入完成数量", text: $completedCounts[index])
+
                 }
             }
             .padding(.horizontal)
@@ -298,29 +278,8 @@ struct EditTaskView: View {
                 ForEach(0..<task.completedCounts.count, id: \.self) { index in
                     TextField("输入项目名称", text: $task.projectNames[index])  // 绑定项目名称
                     TextField("输入项目数量", text: $task.taskCount[index])
-                        .keyboardType(.numberPad)
-                        .onChange(of: task.taskCount[index]) {
-                            if !isValidNumber($0) {
-                                showError(message: "项目数量必须为数字")
-                                task.taskCount[index] = ""
-                            }
-                        }
                     TextField("输入单项时间", text: $task.singleTime[index])
-                        .keyboardType(.numberPad)
-                        .onChange(of: task.singleTime[index]) {
-                            if !isValidNumber($0) {
-                                showError(message: "单项时间必须为数字")
-                                task.singleTime[index] = ""
-                            }
-                        }
-                    TextField("完成数量", text: $task.completedCounts[index])
-                        .keyboardType(.numberPad)
-                        .onChange(of: task.completedCounts[index]) {
-                            if !isValidNumber($0) {
-                                showError(message: "完成数量必须为数字")
-                                task.completedCounts[index] = "0"
-                            }
-                        }
+                    TextField("输入完成数量", text: $task.completedCounts[index])
                 }
             }
             .padding(.horizontal)
