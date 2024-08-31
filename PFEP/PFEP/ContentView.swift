@@ -3,7 +3,7 @@ import SwiftUI
 struct Task: Identifiable {
     let id = UUID()
     var name: String
-    var projectNames: [String]  // 新增项目名称数组
+    var projectNames: [String]  // 项目名称数组
     var taskCount: [String]
     var singleTime: [String]
     var completedCounts: [String]
@@ -67,17 +67,13 @@ struct ContentView: View {
         }
     }
 }
-struct NewTaskView: View {
-    @Binding var savedTasks: [Task]
-    @Environment(\.presentationMode) var presentationMode
-    @State private var taskNameForTitle: String = ""
-    @State private var projectNames: [String] = [""]  // 初始项目名称
-    @State private var taskCount: [String] = [""]
-    @State private var singleTime: [String] = [""]
-    @State private var completedCounts: [String] = ["0"]
-    @State private var showAlert = false
-    @State private var alertMessage = ""
-    @State private var showSavePrompt = false
+
+struct TaskDetailView: View {
+    @Binding var taskNameForTitle: String
+    @Binding var projectNames: [String]
+    @Binding var taskCount: [String]
+    @Binding var singleTime: [String]
+    @Binding var completedCounts: [String]
 
     let columns = [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())]
 
@@ -93,23 +89,11 @@ struct NewTaskView: View {
             .padding()
 
             HStack {
-                Button(action: {
-                    if completedCounts.count > 1 {
-                        projectNames.removeLast()
-                        taskCount.removeLast()
-                        singleTime.removeLast()
-                        completedCounts.removeLast()
-                    }
-                }) {
+                Button(action: removeProject) {
                     Image(systemName: "minus.circle")
                         .foregroundColor(.red)
                 }
-                Button(action: {
-                    projectNames.append("")  // 添加新的项目名称
-                    taskCount.append("")
-                    singleTime.append("")
-                    completedCounts.append("0")
-                }) {
+                Button(action: addProject) {
                     Image(systemName: "plus.circle")
                         .foregroundColor(.green)
                 }
@@ -127,10 +111,50 @@ struct NewTaskView: View {
                     TextField("输入项目数量", text: $taskCount[index])
                     TextField("输入单项时间", text: $singleTime[index])
                     TextField("输入完成数量", text: $completedCounts[index])
-
                 }
             }
             .padding(.horizontal)
+        }
+    }
+
+    func addProject() {
+        projectNames.append("")  // 添加新的项目名称
+        taskCount.append("")
+        singleTime.append("")
+        completedCounts.append("0")
+    }
+
+    func removeProject() {
+        if completedCounts.count > 1 {
+            projectNames.removeLast()
+            taskCount.removeLast()
+            singleTime.removeLast()
+            completedCounts.removeLast()
+        }
+    }
+}
+
+struct NewTaskView: View {
+    @Binding var savedTasks: [Task]
+    @Environment(\.presentationMode) var presentationMode
+    @State private var taskNameForTitle: String = ""
+    @State private var projectNames: [String] = [""]
+    @State private var taskCount: [String] = [""]
+    @State private var singleTime: [String] = [""]
+    @State private var completedCounts: [String] = ["0"]
+    @State private var showAlert = false
+    @State private var alertMessage = ""
+    @State private var showSavePrompt = false
+
+    var body: some View {
+        VStack(alignment: .leading) {
+            TaskDetailView(
+                taskNameForTitle: $taskNameForTitle,
+                projectNames: $projectNames,
+                taskCount: $taskCount,
+                singleTime: $singleTime,
+                completedCounts: $completedCounts
+            )
 
             Spacer()
 
@@ -156,7 +180,6 @@ struct NewTaskView: View {
                 .cornerRadius(10)
             }
             .padding()
-
         }
         .padding()
         .navigationTitle(taskNameForTitle.isEmpty ? "新建任务" : taskNameForTitle)
@@ -177,15 +200,6 @@ struct NewTaskView: View {
         }
     }
 
-    func isValidNumber(_ value: String) -> Bool {
-        return value.isEmpty || Int(value) != nil
-    }
-
-    func showError(message: String) {
-        alertMessage = message
-        showAlert = true
-    }
-
     func saveTask() {
         if taskNameForTitle.trimmingCharacters(in: .whitespaces).isEmpty {
             let dateFormatter = DateFormatter()
@@ -193,24 +207,8 @@ struct NewTaskView: View {
             taskNameForTitle = dateFormatter.string(from: Date())
         }
 
-        let totalRemainingTime = zip(taskCount, singleTime).enumerated().reduce(0) { result, item in
-            let (index, (s_i, t_i)) = item
-            let f_i = Int(completedCounts[index]) ?? 0
-            let s_i_value = Int(s_i) ?? 0
-            let t_i_value = Int(t_i) ?? 0
-            return result + (s_i_value - f_i) * t_i_value
-        }
+        let weightedCompletionRatio = calculateCompletionRatio(taskCount: taskCount, singleTime: singleTime, completedCounts: completedCounts)
 
-        let totalTime = zip(taskCount, singleTime).reduce(0) { result, item in
-            let (s_i, t_i) = item
-            let s_i_value = Int(s_i) ?? 0
-            let t_i_value = Int(t_i) ?? 0
-            return result + s_i_value * t_i_value
-        }
-
-        let weightedCompletionRatio = totalTime > 0 ? 1.0 - Double(totalRemainingTime) / Double(totalTime) : 0.0
-
-        // 初始化 Task 实例时传递所有参数，包括项目名称
         let task = Task(
             name: taskNameForTitle,
             projectNames: projectNames,
@@ -226,69 +224,27 @@ struct NewTaskView: View {
 
 struct EditTaskView: View {
     @Binding var task: Task
-    @Binding var savedTasks: [Task]  // 用于传递整个任务列表，以便在删除任务时更新
+    @Binding var savedTasks: [Task]
     @Environment(\.presentationMode) var presentationMode
     @State private var showAlert = false
     @State private var alertMessage = ""
-    @State private var showDeleteConfirmation = false  // 控制删除确认对话框的显示
-
-    let columns = [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())]
+    @State private var showDeleteConfirmation = false
 
     var body: some View {
         VStack(alignment: .leading) {
-            HStack {
-                Text("任务名称：")
-                    .font(.headline)
-                TextField("输入任务名称", text: $task.name)
-                    .textFieldStyle(RoundedBorderTextFieldStyle())
-                    .padding(.vertical)
-            }
-            .padding()
-
-            HStack {
-                Button(action: {
-                    if task.completedCounts.count > 1 {
-                        task.projectNames.removeLast()
-                        task.taskCount.removeLast()
-                        task.singleTime.removeLast()
-                        task.completedCounts.removeLast()
-                    }
-                }) {
-                    Image(systemName: "minus.circle")
-                        .foregroundColor(.red)
-                }
-                Button(action: {
-                    task.projectNames.append("")  // 添加新的项目名称
-                    task.taskCount.append("")
-                    task.singleTime.append("")
-                    task.completedCounts.append("0")
-                }) {
-                    Image(systemName: "plus.circle")
-                        .foregroundColor(.green)
-                }
-            }
-            .padding(.bottom)
-
-            LazyVGrid(columns: columns, spacing: 16) {
-                Text("项目名称").font(.headline)
-                Text("项目数量").font(.headline)
-                Text("单项时间").font(.headline)
-                Text("完成数量").font(.headline)
-
-                ForEach(0..<task.completedCounts.count, id: \.self) { index in
-                    TextField("输入项目名称", text: $task.projectNames[index])  // 绑定项目名称
-                    TextField("输入项目数量", text: $task.taskCount[index])
-                    TextField("输入单项时间", text: $task.singleTime[index])
-                    TextField("输入完成数量", text: $task.completedCounts[index])
-                }
-            }
-            .padding(.horizontal)
+            TaskDetailView(
+                taskNameForTitle: $task.name,
+                projectNames: $task.projectNames,
+                taskCount: $task.taskCount,
+                singleTime: $task.singleTime,
+                completedCounts: $task.completedCounts
+            )
 
             Spacer()
 
             HStack {
                 Button("删除") {
-                    showDeleteConfirmation = true  // 显示删除确认对话框
+                    showDeleteConfirmation = true
                 }
                 .font(.headline)
                 .padding()
@@ -309,7 +265,6 @@ struct EditTaskView: View {
                 .cornerRadius(10)
             }
             .padding()
-
         }
         .padding()
         .navigationTitle(task.name.isEmpty ? "编辑任务" : task.name)
@@ -323,37 +278,13 @@ struct EditTaskView: View {
                 primaryButton: .destructive(Text("删除")) {
                     deleteTask()
                 },
-                secondaryButton: .cancel(Text("取消"))  // 将 cancel 按钮的文字改为“取消”
+                secondaryButton: .cancel(Text("取消"))
             )
         }
     }
 
-    func isValidNumber(_ value: String) -> Bool {
-        return value.isEmpty || Int(value) != nil
-    }
-
-    func showError(message: String) {
-        alertMessage = message
-        showAlert = true
-    }
-
     func saveTask() {
-        let totalRemainingTime = zip(task.taskCount, task.singleTime).enumerated().reduce(0) { result, item in
-            let (index, (s_i, t_i)) = item
-            let f_i = Int(task.completedCounts[index]) ?? 0
-            let s_i_value = Int(s_i) ?? 0
-            let t_i_value = Int(t_i) ?? 0
-            return result + (s_i_value - f_i) * t_i_value
-        }
-
-        let totalTime = zip(task.taskCount, task.singleTime).reduce(0) { result, item in
-            let (s_i, t_i) = item
-            let s_i_value = Int(s_i) ?? 0
-            let t_i_value = Int(t_i) ?? 0
-            return result + s_i_value * t_i_value
-        }
-
-        task.weightedCompletionRatio = totalTime > 0 ? 1.0 - Double(totalRemainingTime) / Double(totalTime) : 0.0
+        task.weightedCompletionRatio = calculateCompletionRatio(taskCount: task.taskCount, singleTime: task.singleTime, completedCounts: task.completedCounts)
     }
 
     func deleteTask() {
@@ -363,6 +294,27 @@ struct EditTaskView: View {
         presentationMode.wrappedValue.dismiss()
     }
 }
+
+// 提取的公共函数，用于计算完成比率
+func calculateCompletionRatio(taskCount: [String], singleTime: [String], completedCounts: [String]) -> Double {
+    let totalRemainingTime = zip(taskCount, singleTime).enumerated().reduce(0) { result, item in
+        let (index, (s_i, t_i)) = item
+        let f_i = Int(completedCounts[index]) ?? 0
+        let s_i_value = Int(s_i) ?? 0
+        let t_i_value = Int(t_i) ?? 0
+        return result + (s_i_value - f_i) * t_i_value
+    }
+
+    let totalTime = zip(taskCount, singleTime).reduce(0) { result, item in
+        let (s_i, t_i) = item
+        let s_i_value = Int(s_i) ?? 0
+        let t_i_value = Int(t_i) ?? 0
+        return result + s_i_value * t_i_value
+    }
+
+    return totalTime > 0 ? 1.0 - Double(totalRemainingTime) / Double(totalTime) : 0.0
+}
+
 struct ContentView_Previews: PreviewProvider {
     static var previews: some View {
         ContentView()
