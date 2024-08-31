@@ -3,7 +3,7 @@ import SwiftUI
 struct Task: Identifiable {
     let id = UUID()
     var name: String
-    var projectNames: [String]  // 项目名称数组
+    var projectNames: [String]
     var taskCount: [String]
     var singleTime: [String]
     var completedCounts: [String]
@@ -16,44 +16,42 @@ struct ContentView: View {
     var body: some View {
         NavigationView {
             VStack(alignment: .leading) {
-                // 显示保存的任务
                 if !savedTasks.isEmpty {
                     VStack(alignment: .leading) {
                         Text("已保存的任务")
                             .font(.headline)
                             .padding(.bottom, 5)
-                        
+
                         ForEach(savedTasks.indices, id: \.self) { index in
                             NavigationLink(destination: EditTaskView(task: $savedTasks[index], savedTasks: $savedTasks)) {
                                 VStack(alignment: .leading, spacing: 10) {
                                     Text(savedTasks[index].name)
                                         .font(.headline)
                                         .foregroundColor(.primary)
-                                        .frame(maxWidth: .infinity, alignment: .leading)  // 使任务名称靠左对齐
+                                        .frame(maxWidth: .infinity, alignment: .leading)
                                     
                                     Text(String(format: "%.2f%%", savedTasks[index].weightedCompletionRatio * 100))
-                                        .font(.system(size: 32, weight: .bold))  // 更大的粗体字体显示完成比
+                                        .font(.system(size: 32, weight: .bold))
                                         .foregroundColor(.primary)
-                                        .frame(maxWidth: .infinity, alignment: .leading)  // 使完成比靠左对齐
+                                        .frame(maxWidth: .infinity, alignment: .leading)
                                 }
                                 .padding()
-                                .frame(maxWidth: .infinity)  // 使框变得更长
+                                .frame(maxWidth: .infinity)
                                 .background(Color.gray.opacity(0.1))
                                 .cornerRadius(10)
                             }
-                            .padding(.bottom, 10)  // 每个任务框之间增加一些间距
+                            .padding(.bottom, 10)
                         }
                     }
                     .padding()
                 }
 
-                // 新建任务按钮
                 NavigationLink(destination: NewTaskView(savedTasks: $savedTasks)) {
                     Text("新建任务")
                         .font(.headline)
-                        .frame(maxWidth: .infinity) // 按钮宽度占满屏幕
-                        .frame(height: 60) // 设置按钮高度
-                        .background(Color.green.opacity(0.7)) // 浅绿色背景
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 60)
+                        .background(Color.green.opacity(0.7))
                         .foregroundColor(.white)
                         .cornerRadius(10)
                         .padding(.horizontal)
@@ -107,7 +105,7 @@ struct TaskDetailView: View {
                 Text("完成数量").font(.headline)
 
                 ForEach(0..<completedCounts.count, id: \.self) { index in
-                    TextField("输入项目名称", text: $projectNames[index])  // 绑定项目名称
+                    TextField("输入项目名称", text: $projectNames[index])
                     TextField("输入项目数量", text: $taskCount[index])
                     TextField("输入单项时间", text: $singleTime[index])
                     TextField("输入完成数量", text: $completedCounts[index])
@@ -118,10 +116,10 @@ struct TaskDetailView: View {
     }
 
     func addProject() {
-        projectNames.append("")  // 添加新的项目名称
+        projectNames.append("")
         taskCount.append("")
         singleTime.append("")
-        completedCounts.append("0")
+        completedCounts.append("")
     }
 
     func removeProject() {
@@ -141,7 +139,7 @@ struct NewTaskView: View {
     @State private var projectNames: [String] = [""]
     @State private var taskCount: [String] = [""]
     @State private var singleTime: [String] = [""]
-    @State private var completedCounts: [String] = ["0"]
+    @State private var completedCounts: [String] = [""]
     @State private var showAlert = false
     @State private var alertMessage = ""
     @State private var showSavePrompt = false
@@ -160,6 +158,12 @@ struct NewTaskView: View {
 
             HStack {
                 Button("保存") {
+                    let errorMessage = validateInputs(taskName: taskNameForTitle, projectNames: projectNames, taskCount: taskCount, singleTime: singleTime, completedCounts: completedCounts)
+                    if let errorMessage = errorMessage {
+                        alertMessage = errorMessage
+                        showAlert = true
+                        return
+                    }
                     saveTask()
                 }
                 .font(.headline)
@@ -255,6 +259,12 @@ struct EditTaskView: View {
                 Spacer()
 
                 Button("保存") {
+                    let errorMessage = validateInputs(taskName: task.name, projectNames: task.projectNames, taskCount: task.taskCount, singleTime: task.singleTime, completedCounts: task.completedCounts)
+                    if let errorMessage = errorMessage {
+                        alertMessage = errorMessage
+                        showAlert = true
+                        return
+                    }
                     saveTask()
                     presentationMode.wrappedValue.dismiss()
                 }
@@ -285,17 +295,28 @@ struct EditTaskView: View {
 
     func saveTask() {
         task.weightedCompletionRatio = calculateCompletionRatio(taskCount: task.taskCount, singleTime: task.singleTime, completedCounts: task.completedCounts)
+        presentationMode.wrappedValue.dismiss()
     }
 
     func deleteTask() {
         if let index = savedTasks.firstIndex(where: { $0.id == task.id }) {
-            savedTasks.remove(at: index)  // 从任务列表中删除任务
+            savedTasks.remove(at: index)
         }
         presentationMode.wrappedValue.dismiss()
     }
 }
 
-// 提取的公共函数，用于计算完成比率
+// Helper function to combine four collections into a tuple array
+func zip4<A, B, C, D>(_ a: [A], _ b: [B], _ c: [C], _ d: [D]) -> [(A, B, C, D)] {
+    let count = min(a.count, b.count, c.count, d.count)
+    var result: [(A, B, C, D)] = []
+    for i in 0..<count {
+        result.append((a[i], b[i], c[i], d[i]))
+    }
+    return result
+}
+
+// Function to calculate completion ratio for a task
 func calculateCompletionRatio(taskCount: [String], singleTime: [String], completedCounts: [String]) -> Double {
     let totalRemainingTime = zip(taskCount, singleTime).enumerated().reduce(0) { result, item in
         let (index, (s_i, t_i)) = item
@@ -313,6 +334,21 @@ func calculateCompletionRatio(taskCount: [String], singleTime: [String], complet
     }
 
     return totalTime > 0 ? 1.0 - Double(totalRemainingTime) / Double(totalTime) : 0.0
+}
+
+// Input validation function
+func validateInputs(taskName: String, projectNames: [String], taskCount: [String], singleTime: [String], completedCounts: [String]) -> String? {
+    if taskName.trimmingCharacters(in: .whitespaces).isEmpty {
+        return "任务名称不能为空"
+    }
+    
+    for (name, count, time, completed) in zip4(projectNames, taskCount, singleTime, completedCounts) {
+        if name.trimmingCharacters(in: .whitespaces).isEmpty || count.isEmpty || time.isEmpty || completed.isEmpty {
+            return "项目名称、项目数量、单项时间和完成数量均不可为空"
+        }
+    }
+    
+    return nil
 }
 
 struct ContentView_Previews: PreviewProvider {
